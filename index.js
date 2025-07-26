@@ -11,21 +11,35 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🖥️ السيرفر يعمل على بورت ${PORT}`);
 });
-
-// إعداد بوت الدسكورد
-const client = new Client({
+const { Client, IntentsBitField, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const client = new Client({ 
   intents: [
     IntentsBitField.Flags.Guilds,
-    IntentsBitField.Flags.GuildMembers,
-  ],
+    IntentsBitField.Flags.GuildMessages,
+  ]
 });
 
-let attendanceList = [];
+// تخزين البيانات في ملف JSON
+const fs = require('fs');
+const path = require('path');
+const DATA_PATH = path.join(__dirname, 'attendance.json');
+
+let attendance = [];
+
+// تحميل البيانات عند التشغيل
+if (fs.existsSync(DATA_PATH)) {
+  attendance = JSON.parse(fs.readFileSync(DATA_PATH));
+}
+
+// حفظ البيانات
+function saveData() {
+  fs.writeFileSync(DATA_PATH, JSON.stringify(attendance, null, 2));
+}
 
 client.on('ready', () => {
-  console.log(`🟢 بوت الحضور جاهز: ${client.user.tag}`);
+  console.log(`✅ البوت جاهز: ${client.user.tag}`);
 
-  // إرسال زر الحضور تلقائيًا (اختياري)
+  // إنشاء رسالة الأزرار التلقائية (يمكنك إرسالها يدويًا مرة واحدة)
   const channel = client.channels.cache.get('YOUR_CHANNEL_ID'); // استبدل بـ ID الروم
   if (channel) {
     const row = new ActionRowBuilder()
@@ -39,7 +53,7 @@ client.on('ready', () => {
           .setLabel('تسجيل خروج ❌')
           .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
-          .setCustomId('show_list')
+          .setCustomId('show_attendance')
           .setLabel('عرض الحضور 📋')
           .setStyle(ButtonStyle.Primary)
       );
@@ -51,17 +65,18 @@ client.on('ready', () => {
   }
 });
 
-// نفس كود البوت السابق (التفاعل مع الأزرار)
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
-  const user = interaction.user.username;
+  const user = interaction.user;
+  const username = user.username;
 
   if (interaction.customId === 'check_in') {
-    if (!attendanceList.includes(user)) {
-      attendanceList.push(user);
+    if (!attendance.includes(username)) {
+      attendance.push(username);
+      saveData();
       await interaction.reply({
-        content: `✅ **${user}** تم تسجيل دخولك!`,
+        content: `✅ **${username}** تم تسجيل دخولك!`,
         ephemeral: true,
       });
     } else {
@@ -73,10 +88,11 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.customId === 'check_out') {
-    if (attendanceList.includes(user)) {
-      attendanceList = attendanceList.filter(u => u !== user);
+    if (attendance.includes(username)) {
+      attendance = attendance.filter(u => u !== username);
+      saveData();
       await interaction.reply({
-        content: `❌ **${user}** تم تسجيل خروجك!`,
+        content: `❌ **${username}** تم تسجيل خروجك!`,
         ephemeral: true,
       });
     } else {
@@ -87,10 +103,10 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 
-  if (interaction.customId === 'show_list') {
+  if (interaction.customId === 'show_attendance') {
     const embed = new EmbedBuilder()
       .setTitle('📊 قائمة الحضور')
-      .setDescription(attendanceList.length > 0 ? `**${attendanceList.join('\n')}**` : 'لا يوجد أحد حاضر حالياً!')
+      .setDescription(attendance.length > 0 ? attendance.join('\n') : 'لا يوجد أحد حاضر حالياً!')
       .setColor('#00FF00');
 
     await interaction.reply({
@@ -100,5 +116,4 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// تشغيل البوت
-client.login(process.env.TOKEN); // التوكن من متغيرات البيئة
+client.login('YOUR_BOT_TOKEN'); // استبدل بـ توكن البوت
